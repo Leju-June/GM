@@ -1,0 +1,33 @@
+[project]
+name = "public-web-clean-guardian"
+version = "0.1.0"
+description = "공공 웹사이트 불법광고 탐지 도구"
+authors = [
+    {name = "Leju-June", email = "junhune@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.5.0",
+    "playwright>=1.39.0",
+    "pydantic>=2.4.0",
+    "jsonschema>=4.19.0",
+    "pyahocorasick>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-qt>=4.2.0",
+    "pytest-asyncio>=0.21.1",
+    "pyinstaller>=6.0.0",
+    "flake8>=6.1.0",
+    "black>=23.7.0",
+]
+
+[project.scripts]
+guardian = "guardian.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

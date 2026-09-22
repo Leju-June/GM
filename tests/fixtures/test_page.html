@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Fixture Site</title>
+    <style>
+        .hidden-ad { opacity: 0; }
+        .offscreen-ad { display: none; }
+        .offscreen-text { font-size: 1px; }
+        .transparent-text { color: transparent; }
+    </style>
+</head>
+<body>
+    <h1>테스트 페이지</h1>
+    
+    <div class="content">
+        <p>정상적인 내용입니다.</p>
+        
+        <!-- JAMO -->
+        <p>불법 ㅋㅏㅈㅣㄴㅗ 방문</p>
+        
+        <!-- HOMOGLYPH -->
+        <p>ｍｅｇａ－ＢＥＴ 첫충 30％ 지급</p>
+        
+        <!-- TRANSPARENT (opacity) -->
+        <span class="hidden-ad">먹튀검증</span>
+        
+        <!-- TRANSPARENT (color) -->
+        <span class="transparent-text">안전놀이터</span>
+        
+        <!-- OFFSCREEN (display: none) -->
+        <div class="offscreen-ad">무료 슬롯 체험</div>
+        
+        <!-- OFFSCREEN (font-size) -->
+        <p class="offscreen-text">LUCKY7</p>
+    </div>
+</body>
+</html>
