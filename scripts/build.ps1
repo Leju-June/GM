@@ -17,7 +17,6 @@ Write-Host "Downloading local Chromium for Playwright bundling..."
 playwright install chromium
 
 # We use --onedir (default) and include Playwright browsers
-# Exclude PyQt6 to prevent conflict with PySide6
-pyinstaller --name="CleanGuardian" --windowed --add-data="src/guardian/extraction/dom_extract.js;guardian/extraction" --collect-all="playwright" --collect-all="pyahocorasick" --exclude-module PyQt6 src/guardian/__main__.py
+pyinstaller --name="CleanGuardian" --windowed --add-data="src/guardian/extraction/dom_extract.js;guardian/extraction" --collect-all="playwright" --collect-all="pyahocorasick" src/guardian/__main__.py
 
 Write-Host "Build Complete! Check the dist/CleanGuardian directory."

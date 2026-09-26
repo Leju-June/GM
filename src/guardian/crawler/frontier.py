@@ -31,3 +31,6 @@ class CrawlFrontier:
                 return url, depth
                 
         return None
+
+    def queue_size(self) -> int:
+        return len(self.queue)

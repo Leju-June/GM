@@ -5,21 +5,26 @@ from guardian.detection.content_rules import ContentDetector
 
 detector = ContentDetector()
 
-def analyze_node(node: ExtractedNode) -> List[str]:
+def analyze_node(node: ExtractedNode) -> tuple[List[str], str]:
     """
-    Returns a list of technique codes found in the given node.
+    Returns a list of technique codes found in the given node, and the normalized text if any.
     Codes: "HOMOGLYPH", "JAMO", "TRANSPARENT", "OFFSCREEN"
     """
     techniques = []
+    normalized_text = ""
     
+    is_suspicious, _, norm_txt = detector.check_suspicious_content(node.text)
+    if is_suspicious:
+        normalized_text = norm_txt
+        
     # 1. Check style evations
     if check_transparent(node.computed_styles):
         # Even if transparent, we should verify it has suspicious content
-        if detector.check_suspicious_content(node.text):
+        if is_suspicious:
             techniques.append("TRANSPARENT")
             
     if check_offscreen(node.computed_styles):
-        if detector.check_suspicious_content(node.text):
+        if is_suspicious:
             techniques.append("OFFSCREEN")
             
     # 2. Check text transformation evasions
@@ -30,4 +35,4 @@ def analyze_node(node: ExtractedNode) -> List[str]:
     if detector.detect_homoglyph_evasion(node.text):
         techniques.append("HOMOGLYPH")
         
-    return techniques
+    return techniques, normalized_text

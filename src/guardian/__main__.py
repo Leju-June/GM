@@ -57,9 +57,21 @@ def main():
     parser = argparse.ArgumentParser(description="Public Web Clean Guardian")
     parser.add_argument("url", nargs="?", help="Target URL to scan (starts headless mode if provided)")
     parser.add_argument("--out", default="result.json", help="Output path for result.json")
+    parser.add_argument("--worker", action="store_true", help="Run in worker mode (used by GUI IPC)")
     
     args = parser.parse_args()
     
+    if args.worker:
+        from guardian.worker.process import run_worker
+        try:
+            asyncio.run(run_worker())
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            from guardian.ipc.protocol import encode_message
+            print(encode_message("ERROR", {"message": str(e)}), flush=True)
+        sys.exit(0)
+        
     if args.url:
         try:
             asyncio.run(run_headless_scan(args.url, args.out))

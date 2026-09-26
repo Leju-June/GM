@@ -1,71 +1,137 @@
-import os
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QLineEdit, QPushButton, QTextEdit, QLabel
+    QLineEdit, QPushButton, QSplitter, QMessageBox
 )
-from PySide6.QtCore import QProcess, Slot
+from PySide6.QtCore import QProcess, Slot, Qt, QTimer
 
 from guardian.ipc.protocol import decode_message, encode_message
+from guardian.ui.components import SettingsPanel, DashboardPanel, ResultsPanel, DetailView
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("공공웹 클린 가디언 (Public Web Clean Guardian)")
-        self.resize(800, 600)
+        self.resize(1200, 800)
         
+        self.init_ui()
+        
+        self.process = None
+        self.is_scanning = False
+        
+    def init_ui(self):
         main_widget = QWidget()
         layout = QVBoxLayout(main_widget)
         
-        # URL Input
-        url_layout = QHBoxLayout()
+        # Top Bar: URL and Actions
+        top_layout = QHBoxLayout()
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("검사할 웹사이트 URL (예: https://example.com)")
         self.start_btn = QPushButton("탐지 시작")
         self.start_btn.clicked.connect(self.start_scan)
         
-        url_layout.addWidget(QLabel("입력 URL:"))
-        url_layout.addWidget(self.url_input)
-        url_layout.addWidget(self.start_btn)
+        self.cancel_btn = QPushButton("취소 (Cancel)")
+        self.cancel_btn.clicked.connect(self.cancel_scan)
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setStyleSheet("color: red;")
         
-        layout.addLayout(url_layout)
+        top_layout.addWidget(self.url_input)
+        top_layout.addWidget(self.start_btn)
+        top_layout.addWidget(self.cancel_btn)
         
-        # Log Output
-        self.log_output = QTextEdit()
-        self.log_output.setReadOnly(True)
-        layout.addWidget(QLabel("탐지 로그:"))
-        layout.addWidget(self.log_output)
+        layout.addLayout(top_layout)
+        
+        # Main Splitter
+        splitter = QSplitter(Qt.Horizontal)
+        
+        # Left Panel (Settings & Dashboard)
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.settings_panel = SettingsPanel()
+        self.dashboard_panel = DashboardPanel()
+        
+        left_layout.addWidget(self.settings_panel)
+        left_layout.addWidget(self.dashboard_panel)
+        left_layout.addStretch()
+        
+        # Center Panel (Results)
+        self.results_panel = ResultsPanel()
+        self.results_panel.finding_selected.connect(self._on_finding_selected)
+        
+        # Right Panel (Detail View)
+        self.detail_view = DetailView()
+        
+        splitter.addWidget(left_panel)
+        splitter.addWidget(self.results_panel)
+        splitter.addWidget(self.detail_view)
+        
+        splitter.setSizes([300, 500, 400])
+        
+        layout.addWidget(splitter)
         
         self.setCentralWidget(main_widget)
-        
-        self.process = None
         
     @Slot()
     def start_scan(self):
         url = self.url_input.text().strip()
         if not url:
+            QMessageBox.warning(self, "경고", "URL을 입력하세요.")
             return
             
-        self.log_output.clear()
-        self.log_output.append(f"준비 중... {url}")
+        self.is_scanning = True
         self.start_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.settings_panel.setEnabled(False)
+        self.url_input.setEnabled(False)
         
-        worker_script = os.path.join(os.path.dirname(__file__), '..', 'worker', 'process.py')
+        # Reset panels
+        self.results_panel.findings = []
+        self.results_panel.refresh_table()
+        self.detail_view.clear()
         
         self.process = QProcess(self)
         self.process.setProgram(sys.executable)
-        self.process.setArguments([worker_script])
         
+        # Use python -m guardian --worker for PyInstaller compatibility
+        if getattr(sys, 'frozen', False):
+            # In PyInstaller, sys.executable is the .exe itself
+            self.process.setArguments(["--worker"])
+        else:
+            self.process.setArguments(["-m", "guardian", "--worker"])
+            
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stderr)
         self.process.finished.connect(self.process_finished)
         
         self.process.start()
         
+        settings = self.settings_panel.get_settings()
+        
         # Send START message
-        msg = encode_message("START", {"url": url, "output_path": "result.json"})
+        payload = {
+            "url": url, 
+            "output_path": "result.json",
+            "settings": settings
+        }
+        msg = encode_message("START", payload)
         self.process.write((msg + "\n").encode('utf-8'))
         
+    @Slot()
+    def cancel_scan(self):
+        if self.process and self.process.state() == QProcess.Running:
+            msg = encode_message("CANCEL", {})
+            self.process.write((msg + "\n").encode('utf-8'))
+            self.cancel_btn.setEnabled(False)
+            
+            # Start a timer to force kill if it doesn't close gracefully
+            QTimer.singleShot(5000, self._force_kill_process)
+            
+    def _force_kill_process(self):
+        if self.process and self.process.state() == QProcess.Running:
+            self.process.kill()
+            
     @Slot()
     def handle_stdout(self):
         data = self.process.readAllStandardOutput().data().decode('utf-8')
@@ -77,26 +143,37 @@ class MainWindow(QMainWindow):
             msg = decode_message(line)
             if msg:
                 if msg.type == "STARTED":
-                    self.log_output.append(f"[시작] {msg.payload.get('url')} 탐지 시작...")
+                    pass # Handled on GUI
                 elif msg.type == "FINDING":
-                    f = msg.payload
-                    self.log_output.append(f"[발견] {f.get('technique')} - {f.get('evidence_text')} (경로: {f.get('location')})")
+                    self.results_panel.add_finding(msg.payload)
                 elif msg.type == "COMPLETED":
-                    self.log_output.append(f"[완료] 총 {msg.payload.get('scanned_count')} 페이지 검사 완료. 발견 건수: {msg.payload.get('findings_count')}")
-                    self.log_output.append(f"결과 저장 위치: {msg.payload.get('output_path')}")
+                    self.dashboard_panel.update_metrics({
+                        "visited": msg.payload.get('scanned_count', 0)
+                    })
                 elif msg.type == "ERROR":
-                    self.log_output.append(f"[오류] {msg.payload.get('message')}")
+                    QMessageBox.critical(self, "오류", msg.payload.get('message', '알 수 없는 오류'))
+                elif msg.type == "METRICS":
+                    # Update real-time metrics
+                    self.dashboard_panel.update_metrics(msg.payload)
             else:
-                self.log_output.append(f"Worker Output: {line}")
+                pass # Unstructured log
                 
     @Slot()
     def handle_stderr(self):
         data = self.process.readAllStandardError().data().decode('utf-8')
-        for line in data.splitlines():
-            if line.strip():
-                self.log_output.append(f"Worker Error: {line.strip()}")
+        # Here we could log stderr to a file or hidden console
                 
     @Slot(int, QProcess.ExitStatus)
     def process_finished(self, exit_code, exit_status):
-        self.log_output.append("작업 프로세스 종료.")
+        self.is_scanning = False
         self.start_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.settings_panel.setEnabled(True)
+        self.url_input.setEnabled(True)
+        
+        if exit_code != 0:
+            print(f"Process exited abnormally with code {exit_code}")
+            
+    @Slot(dict)
+    def _on_finding_selected(self, finding):
+        self.detail_view.set_finding(finding)

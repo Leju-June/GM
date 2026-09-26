@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('src/guardian/extraction/dom_extract.js', 'guardian/extraction')]
+datas = [('src/guardian/extraction/dom_extract.js', 'guardian/extraction'), ('src/guardian/resources/rules/*', 'guardian/resources/rules')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('playwright')
@@ -19,7 +19,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PyQt6'],
+    excludes=[],
     noarchive=False,
     optimize=0,
 )
